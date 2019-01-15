@@ -42,6 +42,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * An extension of {@link State}, intended to be used for
@@ -57,6 +58,24 @@ public class Page extends State {
             .itemType(ItemTypes.STAINED_GLASS_PANE)
             .add(Keys.DYE_COLOR, DyeColors.BLACK)
             .add(Keys.DISPLAY_NAME, Text.of(TextColors.DARK_GRAY, "HuskyUI")).build();
+
+    /**
+     * The default {@link Function} used to get the {@link ItemStack} used by the
+     * {@link Page} to set the Previous buttom item
+     */
+    @Nonnull public static Function<Page, ItemStack> defaultPreviousStackSupplier = page -> ItemStack.builder()
+            .itemType(ItemTypes.MAP)
+            .add(Keys.DISPLAY_NAME, Text.of("Previous"))
+            .build();
+
+    /**
+     * The default {@link Function} used to get the {@link ItemStack} used by the
+     * {@link Page} to set the Next buttom item
+     */
+    @Nonnull public static Function<Page, ItemStack> defaultNextStackSupplier = page -> ItemStack.builder()
+            .itemType(ItemTypes.MAP)
+            .add(Keys.DISPLAY_NAME, Text.of("Next"))
+            .build();
 
     /**
      * The {@link Element}s that will be used by this Page.
@@ -86,6 +105,18 @@ public class Page extends State {
      * {@link Page#defaultEmptyStack}.
      */
     @Nonnull private final ItemStack emptyStack;
+
+    /**
+     * The {@link Function} used to get the {@link ItemStack} of the
+     * Previous page button
+     */
+    @Nonnull private final Function<Page, ItemStack> previousStackSupplier;
+
+    /**
+     * The {@link Function} used to get the {@link ItemStack} of the
+     * Next page button
+     */
+    @Nonnull private final Function<Page, ItemStack> nextStackSupplier;
 
     /**
      * Whether or not to fill empty stacks with
@@ -153,7 +184,9 @@ public class Page extends State {
                 final boolean autoPaging,
                 final boolean centered,
                 final int rows,
-                final String parent) {
+                final String parent,
+                final Function<Page, ItemStack> previousStackSupplier,
+                final Function<Page, ItemStack> nextStackSupplier) {
         super(id);
         this.elements = elements;
         this.inventoryDimension = inventoryDimension;
@@ -168,6 +201,8 @@ public class Page extends State {
         this.updateTickRate = updateTickRate;
         this.updateConsumer = updateConsumer;
         this.interrupt = interrupt;
+        this.previousStackSupplier = previousStackSupplier;
+        this.nextStackSupplier = nextStackSupplier;
         cachedInventory = null;
         this.setParent(parent);
     }
@@ -336,19 +371,13 @@ public class Page extends State {
             if (this.autoPaging) {
                 if(num == (this.rows * 9) && pageCount > 1 && pagenum > 0){
                     slot.set(ItemStack.builder()
-                            .fromContainer(ItemStack.builder()
-                                    .itemType(ItemTypes.MAP)
-                                    .add(Keys.DISPLAY_NAME, Text.of(TextStyles.RESET, TextColors.WHITE, "Previous"))
-                                    .build()
+                            .fromContainer(this.previousStackSupplier.apply(this)
                                     .toContainer()
                                     .set(DataQuery.of("UnsafeData", "slotnum"), -2))
                             .build());
                 }else if(num == (this.rows * 9) + 8 && pageCount > 1 && pagenum < pageCount-1){
                     slot.set(ItemStack.builder()
-                            .fromContainer(ItemStack.builder()
-                                    .itemType(ItemTypes.MAP)
-                                    .add(Keys.DISPLAY_NAME, Text.of(TextStyles.RESET, TextColors.WHITE, "Next"))
-                                    .build()
+                            .fromContainer(this.nextStackSupplier.apply(this)
                                     .toContainer()
                                     .set(DataQuery.of("UnsafeData", "slotnum"), -3))
                             .build());
@@ -549,6 +578,10 @@ public class Page extends State {
 
         private Runnable interrupt;
 
+        private Function<Page, ItemStack> previousStackSupplier;
+
+        private Function<Page, ItemStack> nextStackSupplier;
+
         @Nullable
         private String parent;
 
@@ -561,6 +594,8 @@ public class Page extends State {
             this.inventoryDimension = null;
             this.title = Text.of("Unnamed Page");
             this.emptyStack = Page.defaultEmptyStack;
+            this.previousStackSupplier = Page.defaultPreviousStackSupplier;
+            this.nextStackSupplier = Page.defaultNextStackSupplier;
             this.fillWhenEmpty = false;
             this.autoPaging = false;
             this.centered = true;
@@ -582,6 +617,30 @@ public class Page extends State {
          */
         public PageBuilder putElement(final int slot, @Nonnull final Element element) {
             this.elements.put(slot, element);
+            return this;
+        }
+
+        /**
+         * Sets the {@link Function} that will return the ItemStack
+         * of the Previous page button
+         *
+         * @param function the Function of the button stack
+         * @return this PageBuilder
+         */
+        public PageBuilder setPreviousStack(@Nonnull Function<Page, ItemStack> function) {
+            this.previousStackSupplier = function;
+            return this;
+        }
+
+        /**
+         * Sets the {@link Function} that will return the ItemStack
+         * of the Next page button
+         *
+         * @param function the Function of the button stack
+         * @return this PageBuilder
+         */
+        public PageBuilder setNextStack(@Nonnull Function<Page, ItemStack> function) {
+            this.nextStackSupplier = function;
             return this;
         }
 
@@ -707,6 +766,8 @@ public class Page extends State {
             return this;
         }
 
+
+
         /**
          * Builds this PageBuilder to get a new {@link Page} object.
          *
@@ -734,7 +795,9 @@ public class Page extends State {
                     this.autoPaging,
                     this.centered,
                     rows,
-                    parent
+                    parent,
+                    this.previousStackSupplier,
+                    this.nextStackSupplier
             );
         }
     }
